@@ -61,7 +61,7 @@ LeftGroupBox:AddToggle("MyToggle", {
 	Text = "This is a toggle",
 	Tooltip = "This is a tooltip",
 	DisabledTooltip = "I am disabled!",
-	Default = true,
+	Default = false,
 	Disabled = false,
 	Visible = true,
 	Risky = false,
@@ -561,7 +561,168 @@ Tabs.Key:AddKeyBox(function(ReceivedKey)
 	})
 end)
 
-Library:AddDraggableLabel("This is a Draggable Label")
+local RunService = game:GetService("RunService")
+local Stats = game:GetService("Stats")
+
+-- Buat Draggable Label
+local Watermark = Library:AddDraggableLabel("Loading stats...")
+
+-- Fungsi untuk menyuntikkan Icon (127242944781300) ke dalam DraggableLabel
+task.spawn(function()
+    local ICON_ASSET = "rbxassetid://127242944781300"
+    
+    -- Cek apakah return value berupa table dengan method SetIcon
+    if type(Watermark) == "table" and Watermark.SetIcon then
+        Watermark:SetIcon(127242944781300)
+        return
+    end
+
+    -- Cari TextLabel di dalam objek Watermark atau ScreenGui Library
+    local targetLabel = nil
+    if typeof(Watermark) == "Instance" then
+        targetLabel = Watermark:IsA("TextLabel") and Watermark or Watermark:FindFirstChildWhichIsA("TextLabel", true)
+    elseif type(Watermark) == "table" then
+        for _, v in pairs(Watermark) do
+            if typeof(v) == "Instance" then
+                targetLabel = v:IsA("TextLabel") and v or v:FindFirstChildWhichIsA("TextLabel", true)
+                if targetLabel then break end
+            end
+        end
+    end
+
+    -- Fallback: cari langsung di dalam ScreenGui Library jika belum ketemu
+    if not targetLabel and Library.ScreenGui then
+        for _, v in ipairs(Library.ScreenGui:GetDescendants()) do
+            if v:IsA("TextLabel") and v.Text:find("Loading stats") then
+                targetLabel = v
+                break
+            end
+        end
+    end
+
+    -- Pasang ImageLabel tepat di sebelah kiri teks
+    if targetLabel and targetLabel.Parent then
+        local container = targetLabel.Parent
+        if not container:FindFirstChild("CustomWatermarkIcon") then
+            local icon = Instance.new("ImageLabel")
+            icon.Name = "CustomWatermarkIcon"
+            icon.BackgroundTransparency = 1
+            icon.Image = ICON_ASSET
+            icon.Size = UDim2.fromOffset(18, 18)
+            icon.AnchorPoint = Vector2.new(0, 0.5)
+            icon.Position = UDim2.new(0, 6, 0.5, 0)
+            icon.ZIndex = targetLabel.ZIndex + 1
+            icon.Parent = container
+
+            -- Geser posisi teks atau tambah UIPadding agar tidak menabrak icon
+            local padding = container:FindFirstChildOfClass("UIPadding")
+            if padding then
+                padding.PaddingLeft = UDim.new(0, 28)
+            else
+                targetLabel.Position = UDim2.new(0, 28, targetLabel.Position.Y.Scale, targetLabel.Position.Y.Offset)
+            end
+        end
+    end
+end)
+
+-- Hitung FPS secara akurat per frame
+local StartTime = os.clock()
+local FrameCount = 0
+local CurrentFPS = 60
+local LastFPSCheck = os.clock()
+
+local FPSConnection = RunService.RenderStepped:Connect(function()
+    FrameCount += 1
+    local now = os.clock()
+    if now - LastFPSCheck >= 1 then
+        CurrentFPS = math.floor(FrameCount / (now - LastFPSCheck))
+        FrameCount = 0
+        LastFPSCheck = now
+    end
+end)
+
+-- Loop Update Teks (FPS | Ping | Session) setiap 0.5 detik
+task.spawn(function()
+    while not Library.Unloaded do
+        -- Ambil Ping dari Stats Service
+        local ping = 0
+        pcall(function()
+            ping = math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue())
+        end)
+
+        -- Hitung Session Time (Format Jam:Menit:Detik)
+        local elapsed = math.floor(os.clock() - StartTime)
+        local hours = math.floor(elapsed / 3600)
+        local mins = math.floor((elapsed % 3600) / 60)
+        local secs = elapsed % 60
+        local sessionStr = string.format("%02d:%02d:%02d", hours, mins, secs)
+
+        -- Format Teks Akhir
+        local formattedText = string.format("FPS: %d | Ping: %dms | Session: %s", CurrentFPS, ping, sessionStr)
+
+        -- Update teks ke DraggableLabel (mendukung berbagai jenis method Obsidian)
+        if type(Watermark) == "table" then
+            if Watermark.SetText then
+                Watermark:SetText(formattedText)
+            elseif Watermark.Set then
+                Watermark:Set(formattedText)
+            elseif Watermark.Label and typeof(Watermark.Label) == "Instance" then
+                Watermark.Label.Text = formattedText
+            end
+        elseif typeof(Watermark) == "Instance" then
+            local lbl = Watermark:IsA("TextLabel") and Watermark or Watermark:FindFirstChildWhichIsA("TextLabel", true)
+            if lbl then lbl.Text = formattedText end
+        elseif Library.SetWatermark then
+            Library:SetWatermark(formattedText)
+        end
+
+        task.wait(0.5)
+    end
+    
+    -- Putuskan koneksi FPS saat UI di-unload agar tidak memory leak
+    if FPSConnection then
+        FPSConnection:Disconnect()
+    end
+end)
+
+local MobileToggle = Library:AddDraggableButton({
+    Text = "",
+    ExcludeDragging = true,
+    Callback = function()
+        Library:Toggle()
+    end
+})
+
+do
+    local Btn = MobileToggle.Button
+    local BUTTON_SIZE = 46
+
+    Btn.Text = ""
+    Btn.Size = UDim2.fromOffset(BUTTON_SIZE, BUTTON_SIZE)
+
+    local Corner = Btn:FindFirstChildOfClass("UICorner")
+    if Corner then
+        local idx = table.find(Library.Corners, Corner)
+        if idx then
+            table.remove(Library.Corners, idx)
+        end
+        -- Ubah angka 12 ini untuk mengatur kelengkungan sudut:
+        -- 8 = agak tegas, 12 = squircle pas (seperti icon aplikasi), 16 = lebih membulat
+        Corner.CornerRadius = UDim.new(0, 12)
+    end
+
+    local Icon = Instance.new("ImageLabel")
+    Icon.Name = "CenterIcon"
+    Icon.BackgroundTransparency = 1
+    Icon.Image = "rbxassetid://127242944781300"
+    Icon.Size = UDim2.fromOffset(28, 28)
+    Icon.AnchorPoint = Vector2.new(0.5, 0.5)
+    Icon.Position = UDim2.fromScale(0.5, 0.5)
+    Icon.ZIndex = Btn.ZIndex + 1
+    Icon.Parent = Btn
+
+    Btn.Position = UDim2.fromOffset(10, 50)
+end
 
 local MenuGroup = Tabs["UI Settings"]:AddGroupbox({
 	Side = "Left",
