@@ -625,7 +625,7 @@ task.spawn(function()
 
         -- Posisikan tepat di Tengah Atas Layar (Responsive PC & Mobile)
         container.AnchorPoint = Vector2.new(0.5, 0)
-        container.Position = UDim2.new(0.5, 0, 0, 8)
+        container.Position = UDim2.new(0.5, 0, 0, -35)
     end
 end)
 
