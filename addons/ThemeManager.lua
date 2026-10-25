@@ -494,11 +494,11 @@ function ThemeManager:LoadDefault()
 	local ThemeName, Success, FetchErrorMessage = ThemeManager:GetDefaultTheme()
 	if not Success or FetchErrorMessage then
 		if FetchErrorMessage ~= "Default theme is not set" then
-			ThemeManager.Library:Notify({
-				Title = "Error",
-				Description = string.format("Failed to apply default theme: %s", FetchErrorMessage),
-				Icon = "circle-x",
-			})
+			--ThemeManager.Library:Notify({
+			--	Title = "Error",
+			--	Description = string.format("Failed to apply default theme: %s", FetchErrorMessage),
+			--	Icon = "circle-x",
+			--})
 		end
 		return
 	end
@@ -510,11 +510,11 @@ function ThemeManager:LoadDefault()
 
 	local SuccessLoad, LoadErrorMessage = ThemeManager:ApplyTheme(ThemeName)
 	if not SuccessLoad then
-		ThemeManager.Library:Notify({
-			Title = "Error",
-			Description = string.format("Failed to apply default theme: %s", LoadErrorMessage),
-			Icon = "circle-x",
-		})
+		--ThemeManager.Library:Notify({
+			--Title = "Error",
+			--Description = string.format("Failed to apply default theme: %s", LoadErrorMessage),
+			--Icon = "circle-x",
+		--})
 		return
 	end
 
