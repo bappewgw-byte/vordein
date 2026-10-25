@@ -562,36 +562,35 @@ Tabs.Key:AddKeyBox(function(ReceivedKey)
 	})
 end)
 
+--- Watermark icon| Fps | Ping | Sessions
+-- ==========================================
+-- 2. WATERMARK (ICON | FPS | PING | SESSION) - ANTI TABRAK & TOP CENTER
+-- ==========================================
 local RunService = game:GetService("RunService")
 local Stats = game:GetService("Stats")
 
--- Buat Draggable Label
-local Watermark = Library:AddDraggableLabel("Loading stats...")
+local Watermark = Library:AddDraggableLabel("     Loading stats...")
 
--- Fungsi untuk menyuntikkan Icon (127242944781300) ke dalam DraggableLabel
 task.spawn(function()
     local ICON_ASSET = "rbxassetid://127242944781300"
-    
-    -- Cek apakah return value berupa table dengan method SetIcon
-    if type(Watermark) == "table" and Watermark.SetIcon then
-        Watermark:SetIcon(127242944781300)
-        return
-    end
 
-    -- Cari TextLabel di dalam objek Watermark atau ScreenGui Library
+    -- Cari TextLabel utama dari Watermark
     local targetLabel = nil
     if typeof(Watermark) == "Instance" then
         targetLabel = Watermark:IsA("TextLabel") and Watermark or Watermark:FindFirstChildWhichIsA("TextLabel", true)
     elseif type(Watermark) == "table" then
-        for _, v in pairs(Watermark) do
-            if typeof(v) == "Instance" then
-                targetLabel = v:IsA("TextLabel") and v or v:FindFirstChildWhichIsA("TextLabel", true)
-                if targetLabel then break end
+        if Watermark.Label and typeof(Watermark.Label) == "Instance" then
+            targetLabel = Watermark.Label:IsA("TextLabel") and Watermark.Label or Watermark.Label:FindFirstChildWhichIsA("TextLabel", true)
+        else
+            for _, v in pairs(Watermark) do
+                if typeof(v) == "Instance" then
+                    targetLabel = v:IsA("TextLabel") and v or v:FindFirstChildWhichIsA("TextLabel", true)
+                    if targetLabel then break end
+                end
             end
         end
     end
 
-    -- Fallback: cari langsung di dalam ScreenGui Library jika belum ketemu
     if not targetLabel and Library.ScreenGui then
         for _, v in ipairs(Library.ScreenGui:GetDescendants()) do
             if v:IsA("TextLabel") and v.Text:find("Loading stats") then
@@ -601,32 +600,35 @@ task.spawn(function()
         end
     end
 
-    -- Pasang ImageLabel tepat di sebelah kiri teks
-    if targetLabel and targetLabel.Parent then
-        local container = targetLabel.Parent
-        if not container:FindFirstChild("CustomWatermarkIcon") then
-            local icon = Instance.new("ImageLabel")
-            icon.Name = "CustomWatermarkIcon"
-            icon.BackgroundTransparency = 1
-            icon.Image = ICON_ASSET
-            icon.Size = UDim2.fromOffset(18, 18)
-            icon.AnchorPoint = Vector2.new(0, 0.5)
-            icon.Position = UDim2.new(0, 6, 0.5, 0)
-            icon.ZIndex = targetLabel.ZIndex + 1
-            icon.Parent = container
+    if targetLabel then
+        -- Tentukan container utama (apakah langsung TextLabel di ScreenGui atau di dalam Frame)
+        local container = (targetLabel.Parent and not targetLabel.Parent:IsA("ScreenGui")) and targetLabel.Parent or targetLabel
 
-            -- Geser posisi teks atau tambah UIPadding agar tidak menabrak icon
-            local padding = container:FindFirstChildOfClass("UIPadding")
-            if padding then
-                padding.PaddingLeft = UDim.new(0, 28)
-            else
-                targetLabel.Position = UDim2.new(0, 28, targetLabel.Position.Y.Scale, targetLabel.Position.Y.Offset)
+        -- Pasang Icon di sebelah kiri dalam kapsul
+        local icon = container:FindFirstChild("CustomWatermarkIcon") or Instance.new("ImageLabel")
+        icon.Name = "CustomWatermarkIcon"
+        icon.BackgroundTransparency = 1
+        icon.Image = ICON_ASSET
+        icon.Size = UDim2.fromOffset(18, 18)
+        icon.AnchorPoint = Vector2.new(0, 0.5)
+        icon.Position = UDim2.new(0, 6, 0.5, 0) -- Jarak 12px dari pinggir kiri kapsul
+        icon.ZIndex = targetLabel.ZIndex + 1
+        icon.Parent = container
+
+        -- Cabut dari daftar DraggableElements otomatis agar tidak ditarik balik ke pojok kiri
+        if Library.DraggableElements then
+            local idx = table.find(Library.DraggableElements, container)
+            if idx then
+                table.remove(Library.DraggableElements, idx)
             end
         end
+
+        -- Posisikan tepat di Tengah Atas Layar (Responsive PC & Mobile)
+        container.AnchorPoint = Vector2.new(0.5, 0)
+        container.Position = UDim2.new(0.5, 0, 0, 8)
     end
 end)
 
--- Hitung FPS secara akurat per frame
 local StartTime = os.clock()
 local FrameCount = 0
 local CurrentFPS = 60
@@ -642,26 +644,22 @@ local FPSConnection = RunService.RenderStepped:Connect(function()
     end
 end)
 
--- Loop Update Teks (FPS | Ping | Session) setiap 0.5 detik
 task.spawn(function()
     while not Library.Unloaded do
-        -- Ambil Ping dari Stats Service
         local ping = 0
         pcall(function()
             ping = math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue())
         end)
 
-        -- Hitung Session Time (Format Jam:Menit:Detik)
         local elapsed = math.floor(os.clock() - StartTime)
         local hours = math.floor(elapsed / 3600)
         local mins = math.floor((elapsed % 3600) / 60)
         local secs = elapsed % 60
         local sessionStr = string.format("%02d:%02d:%02d", hours, mins, secs)
 
-        -- Format Teks Akhir
-        local formattedText = string.format("FPS: %d | Ping: %dms | Session: %s", CurrentFPS, ping, sessionStr)
+        -- 4 spasi di depan memberi ruang pas untuk icon 18x18 agar tidak pernah menabrak huruf "FPS"
+        local formattedText = string.format("    FPS: %d | Ping: %dms | Session: %s", CurrentFPS, ping, sessionStr)
 
-        -- Update teks ke DraggableLabel (mendukung berbagai jenis method Obsidian)
         if type(Watermark) == "table" then
             if Watermark.SetText then
                 Watermark:SetText(formattedText)
@@ -679,12 +677,12 @@ task.spawn(function()
 
         task.wait(0.5)
     end
-    
-    -- Putuskan koneksi FPS saat UI di-unload agar tidak memory leak
     if FPSConnection then
         FPSConnection:Disconnect()
     end
 end)
+
+-- Icon Hide and Show UI
 
 local MobileToggle = Library:AddDraggableButton({
     Text = "",
